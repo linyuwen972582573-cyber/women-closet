@@ -2,6 +2,8 @@
 
 一个基于 **FastAPI + SQLite** 的衣橱管理网站（中文 UI，移动端友好，支持 PWA）。
 
+> 说明：本仓库的代码与改动**全程由 Cursor 生成/协助生成**（AI Coding Assistant）。
+
 ## 功能
 
 - **账号系统**：注册 / 登录 / 退出，数据按用户隔离
@@ -33,7 +35,9 @@ uvicorn wardrobe_app.main:app --reload
     ```
     然后执行：`uvicorn wardrobe_app.main:app --host 127.0.0.1 --port 8000 --reload`
   - 仍异常可删除本地库重试（会清空数据）：`wardrobe_app\data\wardrobe.sqlite3`（以及 `-wal` / `-shm`）
-- **识别结果都是 unknown**：说明 CLIP 被关闭（详见下文 `WARDROBE_DISABLE_CLIP` 与 `requirements-render.txt`）
+- **识别结果都是 unknown**：
+  - 如果你使用完整依赖（`requirements.txt`）且未设置 `WARDROBE_DISABLE_CLIP=1`，则会启用 CLIP 自动推断。
+  - 如果你设置了 `WARDROBE_DISABLE_CLIP=1`（或环境内缺少 CLIP 相关依赖），识别会关闭，相关字段会显示 `unknown`，你仍可手动填写。
 
 ## 环境变量（配置项）
 
@@ -45,41 +49,3 @@ uvicorn wardrobe_app.main:app --reload
 | `WARDROBE_TRIAL_CODE` | `123456` | 试用口令（不设则关闭） |
 | `WARDROBE_SESSION_HTTPS_ONLY` | `1` | HTTPS 场景下强制 Secure Cookie（一般不需要） |
 | `WARDROBE_DEBUG` | `1` | 开启后将把异常信息返回到页面（仅排错，排完务必关闭） |
-
-## 部署到 Render（推荐）
-
-仓库根目录已包含：
-- **`render.yaml`**：Blueprint（可一键创建服务）
-- **`requirements-render.txt`**：轻量依赖（不含 PyTorch），适合免费实例
-- **`runtime.txt`**：固定 Python 到 `python-3.11.9`（避免过新 Python 导致模板/Jinja2 异常）
-
-### 方式 A：Blueprint（推荐）
-
-1. Render：**New → Blueprint**
-2. 连接 GitHub 仓库并 Apply
-3. 等 Build/Deploy 完成，打开 `https://xxx.onrender.com`
-
-### 方式 B：手动 Web Service（照抄配置）
-
-- **Build Command**
-  - 轻量（免费稳定）：`pip install --upgrade pip && pip install -r requirements-render.txt`
-  - 启用 CLIP（更慢更吃内存）：`pip install --upgrade pip && pip install -r requirements.txt`
-- **Start Command**（SQLite 必须单进程）
-  - `uvicorn wardrobe_app.main:app --host 0.0.0.0 --port $PORT --workers 1`
-- **Environment（建议最少 3 个）**
-  - `WARDROBE_SECRET_KEY`：生成随机值
-  - `WARDROBE_DATA_DIR`：`/tmp/wardrobe_data`（演示）或持久盘挂载目录（见下一节）
-  - `WARDROBE_DISABLE_CLIP=1`（使用轻量依赖时）
-
-### Render 数据持久化（强烈推荐）
-
-如果你把 `WARDROBE_DATA_DIR` 指到 `/tmp/...`，服务休眠/重启后**账号与数据会丢**。解决方法：
-
-1. Render 服务里添加 **Persistent Disk**
-2. 例如挂载到 `/var/data`
-3. 把环境变量改为：`WARDROBE_DATA_DIR=/var/data`
-4. 重新部署
-
-## 生产部署建议（云服务器）
-
-如果你希望 **不休眠、数据长期保存、可自定义域名**，推荐用云服务器（VPS）部署，并把 `WARDROBE_DATA_DIR` 指到服务器磁盘目录（例如 `/var/lib/wardrobe_data`）。
