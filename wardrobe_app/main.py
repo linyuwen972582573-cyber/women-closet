@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import io
+import logging
 import os
 import sqlite3
 import uuid
@@ -27,11 +28,18 @@ from starlette.responses import Response
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+_data_override = os.environ.get("WARDROBE_DATA_DIR", "").strip()
+if _data_override:
+    DATA_DIR = Path(_data_override).expanduser().resolve()
+else:
+    DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "wardrobe.sqlite3"
 
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+logger = logging.getLogger("wardrobe_app")
 
 
 def utc_now_iso() -> str:
@@ -39,7 +47,8 @@ def utc_now_iso() -> str:
 
 
 def db_connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    # timeout: reduce "database is locked" under multi-threaded ASGI + SQLite
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -184,6 +193,8 @@ def _ensure_column(
 
 
 def db_init() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     with db_connect() as conn:
         conn.execute(
             """
@@ -712,10 +723,13 @@ class TrialGateMiddleware(BaseHTTPMiddleware):
 
 # Trial gate reads request.session: SessionMiddleware must wrap this middleware (register Session AFTER Trial).
 app.add_middleware(TrialGateMiddleware)
+_session_https = os.environ.get("WARDROBE_SESSION_HTTPS_ONLY", "").strip() in ("1", "true", "yes")
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.environ.get("WARDROBE_SECRET_KEY", "dev-secret-key-change-me"),
     session_cookie="wardrobe_session",
+    same_site="lax",
+    https_only=_session_https,
 )
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["label_zh"] = label_zh
@@ -759,6 +773,9 @@ def require_admin(user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
 
 @app.on_event("startup")
 def _on_startup():
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO)
+    logger.info("DATA_DIR=%s DB_PATH=%s", DATA_DIR, DB_PATH)
     db_init()
 
 
@@ -1371,29 +1388,50 @@ def register_submit(
     if len(password) < 4:
         raise HTTPException(status_code=400, detail="密码至少 4 位")
 
-    password_hash = hash_password(password)
-    with db_connect() as conn:
-        existing_users = conn.execute("SELECT COUNT(1) AS c FROM users").fetchone()["c"]
-    role = "admin" if int(existing_users) == 0 else "user"
-    with db_connect() as conn:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                "INSERT INTO users(username, password_hash, role, created_at) VALUES(?, ?, ?, ?)",
-                (username, password_hash, role, utc_now_iso()),
-            )
-            user_id = cur.lastrowid
-        except sqlite3.IntegrityError:
-            # 用户名已存在
-            return templates.TemplateResponse(
-                "register.html",
-                {
-                    "request": request,
-                    "user": None,
-                    "error": "用户名已存在，请换一个。",
-                },
-                status_code=400,
-            )
+    try:
+        password_hash = hash_password(password)
+        with db_connect() as conn:
+            existing_users = conn.execute("SELECT COUNT(1) AS c FROM users").fetchone()["c"]
+            role = "admin" if int(existing_users) == 0 else "user"
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "INSERT INTO users(username, password_hash, role, created_at) VALUES(?, ?, ?, ?)",
+                    (username, password_hash, role, utc_now_iso()),
+                )
+                user_id = int(cur.lastrowid)
+            except sqlite3.IntegrityError:
+                return templates.TemplateResponse(
+                    "register.html",
+                    {
+                        "request": request,
+                        "user": None,
+                        "error": "用户名已存在，请换一个。",
+                    },
+                    status_code=400,
+                )
+    except sqlite3.Error as e:
+        logger.exception("register database error: %s", e)
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "user": None,
+                "error": "数据库暂时不可用（可能被多进程锁定或磁盘不可写）。若部署在 Render，请设置进程数为 1，或设置环境变量 WARDROBE_DATA_DIR=/tmp/wardrobe_data。",
+            },
+            status_code=503,
+        )
+    except Exception:
+        logger.exception("register failed (unexpected)")
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "user": None,
+                "error": "注册失败，请稍后重试。若持续出现，请查看服务器日志。",
+            },
+            status_code=500,
+        )
 
     request.session["user_id"] = user_id
     return RedirectResponse("/", status_code=303)
