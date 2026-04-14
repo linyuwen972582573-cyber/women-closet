@@ -678,11 +678,6 @@ def compute_score(
 
 
 app = FastAPI(title="Wardrobe App")
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.environ.get("WARDROBE_SECRET_KEY", "dev-secret-key-change-me"),
-    session_cookie="wardrobe_session",
-)
 
 
 class TrialGateMiddleware(BaseHTTPMiddleware):
@@ -715,7 +710,13 @@ class TrialGateMiddleware(BaseHTTPMiddleware):
         return RedirectResponse("/trial", status_code=303)
 
 
+# Trial gate reads request.session: SessionMiddleware must wrap this middleware (register Session AFTER Trial).
 app.add_middleware(TrialGateMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ.get("WARDROBE_SECRET_KEY", "dev-secret-key-change-me"),
+    session_cookie="wardrobe_session",
+)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["label_zh"] = label_zh
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
