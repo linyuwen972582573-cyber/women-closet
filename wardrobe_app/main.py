@@ -50,6 +50,10 @@ def db_connect() -> sqlite3.Connection:
     # timeout: reduce "database is locked" under multi-threaded ASGI + SQLite
     conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.Error:
+        pass
     return conn
 
 
@@ -751,12 +755,22 @@ def verify_password(raw: str, hashed: str) -> bool:
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
+    """Resolve logged-in user; never raise (avoids 500 on GET /auth/* when DB is busy)."""
     user_id = request.session.get("user_id")
-    if not user_id:
+    if user_id is None or user_id == "":
         return None
-    with db_connect() as conn:
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    return row
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        request.session.pop("user_id", None)
+        return None
+    try:
+        with db_connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+        return row
+    except sqlite3.Error:
+        logger.exception("get_current_user: database error for user_id=%s", uid)
+        return None
 
 
 def require_user(user: Optional[sqlite3.Row] = Depends(get_current_user)) -> sqlite3.Row:
@@ -1391,8 +1405,9 @@ def register_submit(
     try:
         password_hash = hash_password(password)
         with db_connect() as conn:
-            existing_users = conn.execute("SELECT COUNT(1) AS c FROM users").fetchone()["c"]
-            role = "admin" if int(existing_users) == 0 else "user"
+            cnt_row = conn.execute("SELECT COUNT(1) AS c FROM users").fetchone()
+            existing_users = int(cnt_row["c"]) if cnt_row is not None else 0
+            role = "admin" if existing_users == 0 else "user"
             cur = conn.cursor()
             try:
                 cur.execute(
@@ -1433,7 +1448,19 @@ def register_submit(
             status_code=500,
         )
 
-    request.session["user_id"] = user_id
+    try:
+        request.session["user_id"] = int(user_id)
+    except Exception:
+        logger.exception("register: could not persist session (cookie/JSON)")
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "user": None,
+                "error": "账号已在服务器创建成功，但浏览器会话未能保存。请用同一用户名到「登录」页登录。",
+            },
+            status_code=200,
+        )
     return RedirectResponse("/", status_code=303)
 
 
@@ -1450,10 +1477,18 @@ def login_submit(
     username: str = Form(...),
     password: str = Form(...),
 ):
-    with db_connect() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE username = ?", (username.strip(),)
-        ).fetchone()
+    try:
+        with db_connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE username = ?", (username.strip(),)
+            ).fetchone()
+    except sqlite3.Error:
+        logger.exception("login database error")
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "user": None, "error": "数据库暂时不可用，请稍后重试。"},
+            status_code=503,
+        )
     if row is None or not verify_password(password, row["password_hash"]):
         return templates.TemplateResponse(
             "login.html",
@@ -1465,7 +1500,19 @@ def login_submit(
             status_code=400,
         )
 
-    request.session["user_id"] = row["id"]
+    try:
+        request.session["user_id"] = int(row["id"])
+    except Exception:
+        logger.exception("login: could not persist session")
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "user": None,
+                "error": "验证成功，但会话未能写入浏览器。请关闭浏览器插件后重试，或换用无痕窗口。",
+            },
+            status_code=200,
+        )
     return RedirectResponse("/", status_code=303)
 
 

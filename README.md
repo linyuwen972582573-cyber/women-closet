@@ -18,6 +18,17 @@ uvicorn wardrobe_app.main:app --reload
 
 打开浏览器访问：`http://127.0.0.1:8000`
 
+### 本地出现 `Internal Server Error`（尤其注册/登录）
+
+1. **先关掉所有占用 8000 端口的旧进程**（多个 `uvicorn` 或僵尸进程会让浏览器打到错误实例，表现为注册 POST 返回 500）：
+   ```powershell
+   Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
+     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+   ```
+   然后再启动：`uvicorn wardrobe_app.main:app --host 127.0.0.1 --port 8000 --reload`
+2. 若仍异常，删除本地库后重试（会清空衣橱数据）：删除 `wardrobe_app\data\wardrobe.sqlite3`（及同目录下 `-wal` / `-shm` 若存在），重启服务后会自动建表。
+3. 若设置了环境变量 `WARDROBE_TRIAL_CODE`，须先打开 **`http://127.0.0.1:8000/trial`** 输入口令，再注册。
+
 ## 说明（重要）
 
 - **price/brand** 很难仅凭图片可靠识别（除非拍到吊牌/价签/Logo 并做 OCR/Logo 检测）。本 MVP 会把它们作为可编辑字段；图片分析阶段主要做：颜色 + 风格标签 + 图像相似度向量。
