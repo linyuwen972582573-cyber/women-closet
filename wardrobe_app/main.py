@@ -695,6 +695,15 @@ def compute_score(
 app = FastAPI(title="Wardrobe App")
 _debug = os.environ.get("WARDROBE_DEBUG", "").strip() in ("1", "true", "yes")
 
+def _session_secret_key() -> str:
+    # Render/OS env vars are strings, but be defensive to avoid SessionMiddleware type errors.
+    raw = os.environ.get("WARDROBE_SECRET_KEY", "dev-secret-key-change-me")
+    try:
+        s = str(raw)
+    except Exception:
+        s = "dev-secret-key-change-me"
+    return s
+
 
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception):
@@ -742,7 +751,7 @@ app.add_middleware(TrialGateMiddleware)
 _session_https = os.environ.get("WARDROBE_SESSION_HTTPS_ONLY", "").strip() in ("1", "true", "yes")
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("WARDROBE_SECRET_KEY", "dev-secret-key-change-me"),
+    secret_key=_session_secret_key(),
     session_cookie="wardrobe_session",
     same_site="lax",
     https_only=_session_https,
