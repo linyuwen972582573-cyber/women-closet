@@ -1,5 +1,8 @@
 # Render / 小内存主机：不安装 PyTorch 与 sentence-transformers，启动时设 WARDROBE_DISABLE_CLIP=1
 # 仍可完整使用注册、衣橱 CRUD、规则颜色；CLIP 相似度/向量会关闭。
+#
+# 注意：Render 一度会默认使用非常新的 Python（例如 3.14），可能触发依赖兼容问题。
+# 本仓库已通过 runtime.txt 固定到 Python 3.11.9；这里仍保持依赖不锁版本，便于更新。
 fastapi
 uvicorn[standard]
 jinja2

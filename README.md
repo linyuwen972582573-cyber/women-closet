@@ -46,6 +46,8 @@ uvicorn wardrobe_app.main:app --reload
 4. 等待首次 **Build + Deploy** 完成（几分钟量级；若改用完整 `requirements.txt` 含 PyTorch，可能需十几分钟且易在免费实例 OOM）。
 5. 打开 Render 给出的 **`https://你的服务.onrender.com`**，若未设置试用口令可直接注册；若 Blueprint 里自行加了 `WARDROBE_TRIAL_CODE`，需先访问 **`/trial`**。
 
+> Python 版本：仓库根目录包含 `runtime.txt`（`python-3.11.9`），用于避免 Render 选择过新的 Python（例如 3.14）导致模板/Jinja2 报错。
+
 ### 方式 B：手动创建 Web Service
 
 1. **New → Web Service**，连接同一 GitHub 仓库，`Branch` = `main`。
@@ -64,6 +66,8 @@ uvicorn wardrobe_app.main:app --reload
 | `WARDROBE_TRIAL_CODE` | （可选） | 设置后访客须先打开 `/trial` 输入口令。 |
 
 6. **Health Check Path**：`/healthz`（可选，便于 Render 判断存活）。
+
+> 若你看到错误 `Unhandled error: TypeError: cannot use 'tuple' as a dict key (unhashable type: 'dict')`，基本是 Render 使用了过新的 Python（日志路径里会出现 `python3.14`）。请确保 `runtime.txt` 已生效，并执行一次 **Clear build cache & deploy**。
 
 ### Render 与 SQLite 注意事项
 
