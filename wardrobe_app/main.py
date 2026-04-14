@@ -17,7 +17,7 @@ import json
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from PIL import Image
@@ -693,6 +693,18 @@ def compute_score(
 
 
 app = FastAPI(title="Wardrobe App")
+_debug = os.environ.get("WARDROBE_DEBUG", "").strip() in ("1", "true", "yes")
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("unhandled error path=%s method=%s", request.url.path, request.method)
+    if _debug:
+        return PlainTextResponse(
+            f"Unhandled error: {type(exc).__name__}: {exc}",
+            status_code=500,
+        )
+    return PlainTextResponse("Internal Server Error", status_code=500)
 
 
 class TrialGateMiddleware(BaseHTTPMiddleware):
