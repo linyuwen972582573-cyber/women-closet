@@ -1061,7 +1061,21 @@ def _save_upload(upload: UploadFile) -> tuple[str, bytes]:
     fname = f"{uuid.uuid4().hex}{ext}"
     path = UPLOADS_DIR / fname
     path.write_bytes(contents)
-    return str(path.relative_to(BASE_DIR)), contents
+    # Store a stable URL path that works even when DATA_DIR is outside BASE_DIR (e.g. Render /tmp).
+    # We mount DATA_DIR at "/data", so the public path is always "/data/uploads/<fname>".
+    return f"data/uploads/{fname}", contents
+
+
+def _resolve_public_data_path(public_path: str) -> Path:
+    """
+    Resolve stored public paths like 'data/uploads/xxx.jpg' to the real filesystem path under DATA_DIR.
+    Falls back to BASE_DIR join for legacy paths stored under the code directory.
+    """
+    p = (public_path or "").replace("\\", "/").lstrip("/")
+    if p.startswith("data/"):
+        rel = p[len("data/") :]
+        return DATA_DIR / rel
+    return BASE_DIR / p
 
 
 @app.post("/add")
@@ -1203,7 +1217,7 @@ def edit_item(
             silhouette_auto = analyzed.silhouette_label
         elif reanalyze == "1" and image_path:
             # Reanalyze existing image file
-            file_bytes = (BASE_DIR / image_path).read_bytes()
+            file_bytes = _resolve_public_data_path(str(image_path)).read_bytes()
             analyzed = analyze_image(file_bytes)
             emb_blob = embedding_to_blob(analyzed.embedding)
             style_auto = analyzed.style_label
@@ -1258,7 +1272,7 @@ def delete_item(item_id: int, user: sqlite3.Row = Depends(require_user)):
             return RedirectResponse("/", status_code=303)
         if row["image_path"]:
             try:
-                (BASE_DIR / row["image_path"]).unlink(missing_ok=True)
+                _resolve_public_data_path(str(row["image_path"])).unlink(missing_ok=True)
             except Exception:
                 pass
         conn.execute("DELETE FROM clothes WHERE id = ?", (item_id,))
@@ -1417,6 +1431,8 @@ def register_submit(
     try:
         password_hash = hash_password(password)
         with db_connect() as conn:
+            # Ensure schema exists even if runtime data directory changed.
+            db_init()
             cnt_row = conn.execute("SELECT COUNT(1) AS c FROM users").fetchone()
             existing_users = int(cnt_row["c"]) if cnt_row is not None else 0
             role = "admin" if existing_users == 0 else "user"
