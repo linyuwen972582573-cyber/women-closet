@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新增衣服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/">列表</a></li>
+        <li><a href="/compare">相似度/得分</a></li>
+      </ul>
+      <div class="nav-links">
+        {% if user %}
+          <span class="muted">你好，{{ user["username"] }}</span>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section narrow">
+      <div class="section-head">
+        <h1>新增衣服</h1>
+        <a class="btn btn-secondary" href="/">返回</a>
+      </div>
+
+      <form class="form" method="post" action="/add" enctype="multipart/form-data" id="addForm">
+        <div class="field">
+          <label>名称（可选）</label>
+          <input name="name" id="nameInput" placeholder="留空将根据识别结果自动生成" />
+          <p class="hint">你可以只上传图片；系统会自动识别并填充颜色/款式/类别。</p>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Category（类别）</label>
+            <input id="categoryZhInput" placeholder="留空=自动识别（大衣/夹克/T恤...）" />
+            <input type="hidden" name="category" id="categoryInput" />
+          </div>
+          <div class="field">
+            <label>季节</label>
+            <input id="seasonZhInput" placeholder="例如：春季 / 夏季 / 秋季 / 冬季" />
+            <input type="hidden" name="season" id="seasonInput" />
+          </div>
+          <div class="field">
+            <label>Style</label>
+            <input id="styleZhInput" placeholder="例如：休闲 / 商务 / 极简..." />
+            <input type="hidden" name="style" id="styleInput" />
+            <p class="hint">留空时，若上传图片会自动推断一个风格标签。</p>
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <input id="colorZhInput" placeholder="例如：黑色 / 白色 / 蓝色..." />
+            <input type="hidden" name="color" id="colorInput" />
+            <p class="hint">留空时，若上传图片会自动推断一个主色名称。</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>材质</label>
+            <input id="materialZhInput" placeholder="例如：棉 / 羊毛 / 牛仔 / 针织..." />
+            <input type="hidden" name="material" id="materialInput" />
+          </div>
+          <div class="field">
+            <label>版型 / 轮廓</label>
+            <input id="silhouetteZhInput" placeholder="例如：宽松/廓形 / 修身 / 合身..." />
+            <input type="hidden" name="silhouette" id="silhouetteInput" />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Brand</label>
+            <input name="brand" placeholder="例如：Uniqlo / Nike..." />
+          </div>
+          <div class="field">
+            <label>Price</label>
+            <input name="price" inputmode="decimal" placeholder="例如：199" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>备注</label>
+          <textarea name="notes" rows="3" placeholder="例如：尺码/材质/购买渠道/适合场景..."></textarea>
+        </div>
+
+        <div class="field">
+          <label>上传图片（必选）</label>
+          <input type="file" name="image" id="imageInput" accept="image/*" required />
+          <p class="hint">选择图片后会先进行“预览识别”，并自动回填到输入框；点“保存”才会真正入库。</p>
+        </div>
+
+        <div class="card card-plain" id="previewCard" style="display:none; margin-bottom: 0.9rem;">
+          <h3 class="card-title">预览识别结果</h3>
+          <div class="thumb big" style="margin: 0.5rem 0;">
+            <img id="previewImg" alt="preview" />
+          </div>
+          <p class="muted" id="previewText">正在识别…</p>
+          <p class="hint">提示：如果你已经手动填写了某个字段，系统不会覆盖你的手填内容。</p>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">保存</button>
+          <a class="btn btn-secondary" href="/">取消</a>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+<script>
+  (function () {
+    const imageInput = document.getElementById('imageInput');
+    const previewCard = document.getElementById('previewCard');
+    const previewImg = document.getElementById('previewImg');
+    const previewText = document.getElementById('previewText');
+
+    const nameInput = document.getElementById('nameInput');
+    const categoryInput = document.getElementById('categoryInput'); // hidden (en)
+    const styleInput = document.getElementById('styleInput'); // hidden (en)
+    const colorInput = document.getElementById('colorInput'); // hidden (en)
+    const seasonInput = document.getElementById('seasonInput'); // hidden (en)
+    const materialInput = document.getElementById('materialInput'); // hidden (en)
+    const silhouetteInput = document.getElementById('silhouetteInput'); // hidden (en)
+
+    const categoryZhInput = document.getElementById('categoryZhInput'); // visible (zh)
+    const styleZhInput = document.getElementById('styleZhInput'); // visible (zh)
+    const colorZhInput = document.getElementById('colorZhInput'); // visible (zh)
+    const seasonZhInput = document.getElementById('seasonZhInput'); // visible (zh)
+    const materialZhInput = document.getElementById('materialZhInput'); // visible (zh)
+    const silhouetteZhInput = document.getElementById('silhouetteZhInput'); // visible (zh)
+
+    const ZH_TO_EN = {
+      category: {
+        'T恤': 't-shirt',
+        '衬衫': 'shirt',
+        '连帽衫/卫衣': 'hoodie',
+        '毛衣': 'sweater',
+        '夹克': 'jacket',
+        '大衣': 'coat',
+        '连衣裙': 'dress',
+        '半身裙': 'skirt',
+        '牛仔裤': 'jeans',
+        '长裤': 'pants',
+        '短裤': 'shorts',
+        '未知': 'unknown',
+      },
+      style: {
+        '休闲': 'casual',
+        '正式': 'formal',
+        '街头': 'streetwear',
+        '复古': 'vintage',
+        '极简': 'minimalist',
+        '商务': 'business',
+        '运动': 'sportswear',
+        '未知': 'unknown',
+      },
+      color: {
+        '黑色': 'black',
+        '白色': 'white',
+        '灰色': 'gray',
+        '红色': 'red',
+        '橙色': 'orange',
+        '黄色': 'yellow',
+        '绿色': 'green',
+        '蓝色': 'blue',
+        '紫色': 'purple',
+        '棕色': 'brown',
+        '粉色': 'pink',
+        '米色': 'beige',
+        '藏青': 'navy',
+        '未知': 'unknown',
+      }
+      ,
+      season: {
+        '春季': 'spring',
+        '夏季': 'summer',
+        '秋季': 'autumn',
+        '冬季': 'winter',
+        '未知': 'unknown',
+      },
+      material: {
+        '棉': 'cotton',
+        '羊毛': 'wool',
+        '牛仔': 'denim',
+        '皮革': 'leather',
+        '亚麻': 'linen',
+        '聚酯': 'polyester',
+        '丝绸': 'silk',
+        '针织': 'knit',
+        '未知': 'unknown',
+      },
+      silhouette: {
+        '宽松/廓形': 'oversized',
+        '修身': 'slim',
+        '合身': 'regular fit',
+        '短款': 'cropped',
+        '长款': 'longline',
+        'A字/伞摆': 'a-line',
+        '直筒': 'straight',
+        '未知': 'unknown',
+      }
+    };
+
+    function normalizeZh(s) {
+      return (s || '').trim();
+    }
+
+    function syncFromZh(kind, zhValue) {
+      const zh = normalizeZh(zhValue);
+      const en = (ZH_TO_EN[kind] && ZH_TO_EN[kind][zh]) ? ZH_TO_EN[kind][zh] : '';
+      if (kind === 'category') categoryInput.value = en;
+      if (kind === 'style') styleInput.value = en;
+      if (kind === 'color') colorInput.value = en;
+      if (kind === 'season') seasonInput.value = en;
+      if (kind === 'material') materialInput.value = en;
+      if (kind === 'silhouette') silhouetteInput.value = en;
+    }
+
+    function isBlank(el) {
+      return !el.value || el.value.trim() === '';
+    }
+
+    async function analyze(file) {
+      const fd = new FormData();
+      fd.append('image', file);
+      const resp = await fetch('/api/analyze-image', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || ('HTTP ' + resp.status));
+      }
+      return await resp.json();
+    }
+
+    imageInput.addEventListener('change', async () => {
+      const file = imageInput.files && imageInput.files[0];
+      if (!file) return;
+
+      previewCard.style.display = 'block';
+      previewText.textContent = '正在识别…';
+
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+
+      try {
+        const r = await analyze(file);
+        function fmtTop3(arr, useZh) {
+          if (!Array.isArray(arr) || arr.length === 0) return 'n/a';
+          return arr.map(x => `${(useZh && x.label_zh) ? x.label_zh : x.label} (${Math.round((x.conf || 0) * 100)}%)`).join(' / ');
+        }
+
+        const parts = [
+          '类别=' + (r.category_zh || r.category || '未知') + ' | Top3: ' + fmtTop3(r.category_top3_zh || r.category_top3, true),
+          '风格=' + (r.style_zh || r.style || '未知') + ' | Top3: ' + fmtTop3(r.style_top3_zh || r.style_top3, true),
+          '颜色=' + (r.color_zh || r.color || '未知') + ' | Top3: ' + fmtTop3(r.color_top3_zh || r.color_top3, true),
+          '季节=' + (r.season_zh || r.season || '未知') + ' | Top3: ' + fmtTop3(r.season_top3_zh || r.season_top3, true),
+          '材质=' + (r.material_zh || r.material || '未知') + ' | Top3: ' + fmtTop3(r.material_top3_zh || r.material_top3, true),
+          '版型=' + (r.silhouette_zh || r.silhouette || '未知') + ' | Top3: ' + fmtTop3(r.silhouette_top3_zh || r.silhouette_top3, true),
+        ];
+        previewText.textContent = '识别结果：' + parts.join('；');
+
+        // 回填：可见中文 + 隐藏英文（用于保存/计算）
+        if (categoryZhInput && isBlank(categoryZhInput) && (r.category_zh || r.category)) categoryZhInput.value = (r.category_zh || r.category);
+        if (styleZhInput && isBlank(styleZhInput) && (r.style_zh || r.style)) styleZhInput.value = (r.style_zh || r.style);
+        if (colorZhInput && isBlank(colorZhInput) && (r.color_zh || r.color)) colorZhInput.value = (r.color_zh || r.color);
+        if (seasonZhInput && isBlank(seasonZhInput) && (r.season_zh || r.season)) seasonZhInput.value = (r.season_zh || r.season);
+        if (materialZhInput && isBlank(materialZhInput) && (r.material_zh || r.material)) materialZhInput.value = (r.material_zh || r.material);
+        if (silhouetteZhInput && isBlank(silhouetteZhInput) && (r.silhouette_zh || r.silhouette)) silhouetteZhInput.value = (r.silhouette_zh || r.silhouette);
+
+        if (isBlank(categoryInput) && r.category) categoryInput.value = r.category;
+        if (isBlank(styleInput) && r.style) styleInput.value = r.style;
+        if (isBlank(colorInput) && r.color) colorInput.value = r.color;
+        if (isBlank(seasonInput) && r.season) seasonInput.value = r.season;
+        if (isBlank(materialInput) && r.material) materialInput.value = r.material;
+        if (isBlank(silhouetteInput) && r.silhouette) silhouetteInput.value = r.silhouette;
+
+        if (nameInput && isBlank(nameInput)) {
+          const autoName = [r.color_zh || r.color, r.category_zh || r.category].filter(Boolean).join(' ').trim();
+          if (autoName) nameInput.value = autoName;
+        }
+      } catch (e) {
+        previewText.textContent = '识别失败：' + (e && e.message ? e.message : String(e));
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }
+    });
+
+    // 手动编辑中文时，同步隐藏英文
+    if (categoryZhInput) categoryZhInput.addEventListener('input', () => syncFromZh('category', categoryZhInput.value));
+    if (styleZhInput) styleZhInput.addEventListener('input', () => syncFromZh('style', styleZhInput.value));
+    if (colorZhInput) colorZhInput.addEventListener('input', () => syncFromZh('color', colorZhInput.value));
+    if (seasonZhInput) seasonZhInput.addEventListener('input', () => syncFromZh('season', seasonZhInput.value));
+    if (materialZhInput) materialZhInput.addEventListener('input', () => syncFromZh('material', materialZhInput.value));
+    if (silhouetteZhInput) silhouetteZhInput.addEventListener('input', () => syncFromZh('silhouette', silhouetteZhInput.value));
+  })();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>

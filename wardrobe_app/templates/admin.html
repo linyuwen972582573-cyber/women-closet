@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理员 - 衣橱管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/">列表</a></li>
+        <li><a href="/account">账号</a></li>
+      </ul>
+      <div class="nav-links">
+        <span class="muted">管理员：{{ user["username"] }}</span>
+        <form method="post" action="/auth/logout">
+          <button class="link" type="submit">退出</button>
+        </form>
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section">
+      <div class="section-head">
+        <h1>管理员后台</h1>
+      </div>
+
+      <h2 class="h2">用户列表</h2>
+      <div class="card card-plain">
+        <div class="table">
+          <div class="row head">
+            <div>ID</div><div>用户名</div><div>角色</div><div>创建时间</div>
+          </div>
+          {% for u in users %}
+            <div class="row">
+              <div>{{ u["id"] }}</div>
+              <div>{{ u["username"] }}</div>
+              <div>{{ u["role"] }}</div>
+              <div class="muted">{{ u["created_at"] }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <h2 class="h2">所有衣服数据</h2>
+      <div class="cards">
+        {% for c in clothes %}
+          <article class="card">
+            <div class="card-row">
+              <div class="card-main">
+                <h3 class="card-title">{{ c["name"] }}</h3>
+                <p class="muted">Owner: <b>{{ c["owner"] or "unknown" }}</b> (user_id={{ c["user_id"] if c["user_id"] is not none else "-" }})</p>
+                <p class="card-meta">
+                  <span>Style: <b>{{ c["style"] or "-" }}</b></span>
+                  <span>Color: <b>{{ c["color"] or "-" }}</b></span>
+                  <span>Brand: <b>{{ c["brand"] or "-" }}</b></span>
+                  <span>Price: <b>{{ c["price"] if c["price"] is not none else "-" }}</b></span>
+                </p>
+                <p class="muted tiny">创建：{{ c["created_at"] }}；更新：{{ c["updated_at"] }}</p>
+              </div>
+              <div class="thumb">
+                {% if c["image_path"] %}
+                  <img src="/{{ c['image_path'] }}" alt="cloth" />
+                {% else %}
+                  <div class="thumb-empty">无图</div>
+                {% endif %}
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>试用入口 - 衣橱管理</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section narrow">
+      <div class="section-head">
+        <h1>试用口令</h1>
+      </div>
+
+      <form class="form" method="post" action="/trial">
+        {% if error %}
+          <p class="hint" style="color:#ff5a6a;">{{ error }}</p>
+        {% endif %}
+        <div class="field">
+          <label>请输入口令</label>
+          <input name="code" required />
+          <p class="hint">用于小范围试用，避免链接被陌生人访问。</p>
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit">进入</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

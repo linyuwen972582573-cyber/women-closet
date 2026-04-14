@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>相似度/得分</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/">列表</a></li>
+        <li><a href="/add">新增</a></li>
+      </ul>
+      <div class="nav-links">
+        {% if user %}
+          <span class="muted">你好，{{ user["username"] }}</span>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section">
+      <div class="section-head">
+        <h1>上传图片：相似度/得分</h1>
+        <a class="btn btn-secondary" href="/">返回</a>
+      </div>
+
+      <form class="form" method="post" action="/compare" enctype="multipart/form-data">
+        <div class="grid-2">
+          <div class="field">
+            <label>选择一个目标衣服（用于展示“与它的相似度”）</label>
+            <select name="target_id" required>
+              {% for c in clothes %}
+                <option value="{{ c['id'] }}">{{ c['id'] }} - {{ c['name'] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>上传新图片（必选）</label>
+            <input type="file" name="image" accept="image/*" required />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <h2 class="h2">可选：你自己的要求（覆盖自动识别结果）</h2>
+        <div class="grid-4">
+          <div class="field">
+            <label>Category</label>
+            <input name="category" placeholder="留空=用自动识别" />
+          </div>
+          <div class="field">
+            <label>Style</label>
+            <input name="style" placeholder="留空=用自动识别" />
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <input name="color" placeholder="留空=用自动识别" />
+          </div>
+          <div class="field">
+            <label>Brand</label>
+            <input name="brand" placeholder="可选" />
+          </div>
+          <div class="field">
+            <label>Price</label>
+            <input name="price" inputmode="decimal" placeholder="可选" />
+          </div>
+        </div>
+
+        <h2 class="h2">权重（可按需求调整）</h2>
+        <div class="grid-5">
+          <div class="field">
+            <label>Image</label>
+            <input name="w_image" type="number" step="0.01" value="0.55" />
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <input name="w_category" type="number" step="0.01" value="0.10" />
+          </div>
+          <div class="field">
+            <label>Style</label>
+            <input name="w_style" type="number" step="0.01" value="0.20" />
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <input name="w_color" type="number" step="0.01" value="0.15" />
+          </div>
+          <div class="field">
+            <label>Brand</label>
+            <input name="w_brand" type="number" step="0.01" value="0.05" />
+          </div>
+          <div class="field">
+            <label>Price</label>
+            <input name="w_price" type="number" step="0.01" value="0.05" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">开始识别与对比</button>
+        </div>
+      </form>
+
+      {% if result %}
+        <div class="divider"></div>
+        <section class="results">
+          <h2 class="h2">识别结果</h2>
+          <div class="grid-2">
+            <div class="card card-plain">
+              <h3 class="card-title">上传图片</h3>
+              <div class="thumb big">
+                <img src="/{{ result['upload_path'] }}" alt="upload" />
+              </div>
+              <p class="muted">自动 Style：<b>{{ result['auto_style'] }}</b>；自动 Color：<b>{{ result['auto_color'] }}</b></p>
+              <p class="muted">自动 Category：<b>{{ result['auto_category'] }}</b></p>
+              <p class="muted">用于计算的查询字段：Category=<b>{{ result['query_fields']['category'] or '-' }}</b>，Style=<b>{{ result['query_fields']['style'] or '-' }}</b>，Color=<b>{{ result['query_fields']['color'] or '-' }}</b>，Brand=<b>{{ result['query_fields']['brand'] or '-' }}</b>，Price=<b>{{ result['query_fields']['price'] if result['query_fields']['price'] is not none else '-' }}</b></p>
+            </div>
+
+            <div class="card card-plain">
+              <h3 class="card-title">目标衣服</h3>
+              <p><b>{{ result['target']['name'] }}</b></p>
+              <p class="muted">Style: <b>{{ result['target']['style'] or '-' }}</b></p>
+              <p class="muted">Color: <b>{{ result['target']['color'] or '-' }}</b></p>
+              <p class="muted">Brand: <b>{{ result['target']['brand'] or '-' }}</b></p>
+              <p class="muted">Price: <b>{{ result['target']['price'] if result['target']['price'] is not none else '-' }}</b></p>
+              <p class="muted">与目标的图片相似度（0~1）：<b>{{ '%.3f'|format(result['target_image_similarity']) }}</b></p>
+            </div>
+          </div>
+
+          <h2 class="h2">Top 匹配（按总分排序）</h2>
+          <div class="cards">
+            {% for m in result['top_matches'] %}
+              <article class="card">
+                <div class="card-row">
+                  <div class="card-main">
+                    <h3 class="card-title">{{ m['candidate']['name'] }} <span class="pill">Score {{ '%.1f'|format(m['score']*100) }}%</span></h3>
+                    <p class="card-meta">
+                      <span>Category: <b>{{ m['candidate']['category'] or '-' }}</b></span>
+                      <span>Style: <b>{{ m['candidate']['style'] or '-' }}</b></span>
+                      <span>Color: <b>{{ m['candidate']['color'] or '-' }}</b></span>
+                      <span>Brand: <b>{{ m['candidate']['brand'] or '-' }}</b></span>
+                      <span>Price: <b>{{ m['candidate']['price'] if m['candidate']['price'] is not none else '-' }}</b></span>
+                    </p>
+                    <p class="muted tiny">
+                      image={{ '%.3f'|format(m['components']['image']) }},
+                      category={{ '%.2f'|format(m['components']['category']) }},
+                      style={{ '%.2f'|format(m['components']['style']) }},
+                      color={{ '%.2f'|format(m['components']['color']) }},
+                      brand={{ '%.2f'|format(m['components']['brand']) }},
+                      price={{ '%.2f'|format(m['components']['price']) }}
+                    </p>
+                  </div>
+                  <div class="thumb">
+                    {% if m['candidate']['image_path'] %}
+                      <img src="/{{ m['candidate']['image_path'] }}" alt="cloth" />
+                    {% else %}
+                      <div class="thumb-empty">无图</div>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="card-actions">
+                  <a class="link" href="/edit/{{ m['candidate']['id'] }}">编辑</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>编辑衣服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/">列表</a></li>
+        <li><a href="/compare">相似度/得分</a></li>
+      </ul>
+      <div class="nav-links">
+        {% if user %}
+          <span class="muted">你好，{{ user["username"] }}</span>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section narrow">
+      <div class="section-head">
+        <h1>编辑：{{ item["name"] }}</h1>
+        <a class="btn btn-secondary" href="/">返回</a>
+      </div>
+
+      <form class="form" method="post" action="/edit/{{ item['id'] }}" enctype="multipart/form-data">
+        <div class="field">
+          <label>名称（必填）</label>
+          <input name="name" required value="{{ item['name'] }}" />
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Category（类别）</label>
+            <input id="categoryZhInput" value="{{ label_zh('category', item['category'] or '') }}" />
+            <input type="hidden" name="category" id="categoryInput" value="{{ item['category'] or '' }}" />
+          </div>
+          <div class="field">
+            <label>季节</label>
+            <input id="seasonZhInput" value="{{ label_zh('season', item['season'] or '') }}" />
+            <input type="hidden" name="season" id="seasonInput" value="{{ item['season'] or '' }}" />
+          </div>
+          <div class="field">
+            <label>Style</label>
+            <input id="styleZhInput" value="{{ label_zh('style', item['style'] or '') }}" />
+            <input type="hidden" name="style" id="styleInput" value="{{ item['style'] or '' }}" />
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <input id="colorZhInput" value="{{ label_zh('color', item['color'] or '') }}" />
+            <input type="hidden" name="color" id="colorInput" value="{{ item['color'] or '' }}" />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>材质</label>
+            <input id="materialZhInput" value="{{ label_zh('material', item['material'] or '') }}" />
+            <input type="hidden" name="material" id="materialInput" value="{{ item['material'] or '' }}" />
+          </div>
+          <div class="field">
+            <label>版型 / 轮廓</label>
+            <input id="silhouetteZhInput" value="{{ label_zh('silhouette', item['silhouette'] or '') }}" />
+            <input type="hidden" name="silhouette" id="silhouetteInput" value="{{ item['silhouette'] or '' }}" />
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Brand</label>
+            <input name="brand" value="{{ item['brand'] or '' }}" />
+          </div>
+          <div class="field">
+            <label>Price</label>
+            <input name="price" inputmode="decimal" value="{{ item['price'] if item['price'] is not none else '' }}" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>备注</label>
+          <textarea name="notes" rows="3">{{ item['notes'] or '' }}</textarea>
+        </div>
+
+        <div class="field">
+          <label>当前图片</label>
+          <div class="thumb big">
+            {% if item["image_path"] %}
+              <img src="/{{ item['image_path'] }}" alt="cloth" />
+            {% else %}
+              <div class="thumb-empty">无图</div>
+            {% endif %}
+          </div>
+          {% if item["image_path"] %}
+            <div class="inline">
+              <label class="checkbox">
+                <input type="checkbox" name="reanalyze" value="1" />
+                重新分析当前图片（刷新类别/风格/主色与向量）
+              </label>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label>替换图片（可选）</label>
+          <input type="file" name="image" accept="image/*" />
+          <p class="hint">上传新图会覆盖旧图并重新生成向量。</p>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">保存</button>
+          <a class="btn btn-secondary" href="/">取消</a>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+<script>
+  (function () {
+    const categoryInput = document.getElementById('categoryInput');
+    const styleInput = document.getElementById('styleInput');
+    const colorInput = document.getElementById('colorInput');
+    const seasonInput = document.getElementById('seasonInput');
+    const materialInput = document.getElementById('materialInput');
+    const silhouetteInput = document.getElementById('silhouetteInput');
+    const categoryZhInput = document.getElementById('categoryZhInput');
+    const styleZhInput = document.getElementById('styleZhInput');
+    const colorZhInput = document.getElementById('colorZhInput');
+    const seasonZhInput = document.getElementById('seasonZhInput');
+    const materialZhInput = document.getElementById('materialZhInput');
+    const silhouetteZhInput = document.getElementById('silhouetteZhInput');
+
+    const ZH_TO_EN = {
+      category: {
+        'T恤': 't-shirt',
+        '衬衫': 'shirt',
+        '连帽衫/卫衣': 'hoodie',
+        '毛衣': 'sweater',
+        '夹克': 'jacket',
+        '大衣': 'coat',
+        '连衣裙': 'dress',
+        '半身裙': 'skirt',
+        '牛仔裤': 'jeans',
+        '长裤': 'pants',
+        '短裤': 'shorts',
+        '未知': 'unknown',
+      },
+      style: {
+        '休闲': 'casual',
+        '正式': 'formal',
+        '街头': 'streetwear',
+        '复古': 'vintage',
+        '极简': 'minimalist',
+        '商务': 'business',
+        '运动': 'sportswear',
+        '未知': 'unknown',
+      },
+      color: {
+        '黑色': 'black',
+        '白色': 'white',
+        '灰色': 'gray',
+        '红色': 'red',
+        '橙色': 'orange',
+        '黄色': 'yellow',
+        '绿色': 'green',
+        '蓝色': 'blue',
+        '紫色': 'purple',
+        '棕色': 'brown',
+        '粉色': 'pink',
+        '米色': 'beige',
+        '藏青': 'navy',
+        '未知': 'unknown',
+      }
+      ,
+      season: {
+        '春季': 'spring',
+        '夏季': 'summer',
+        '秋季': 'autumn',
+        '冬季': 'winter',
+        '未知': 'unknown',
+      },
+      material: {
+        '棉': 'cotton',
+        '羊毛': 'wool',
+        '牛仔': 'denim',
+        '皮革': 'leather',
+        '亚麻': 'linen',
+        '聚酯': 'polyester',
+        '丝绸': 'silk',
+        '针织': 'knit',
+        '未知': 'unknown',
+      },
+      silhouette: {
+        '宽松/廓形': 'oversized',
+        '修身': 'slim',
+        '合身': 'regular fit',
+        '短款': 'cropped',
+        '长款': 'longline',
+        'A字/伞摆': 'a-line',
+        '直筒': 'straight',
+        '未知': 'unknown',
+      }
+    };
+
+    function normalizeZh(s) { return (s || '').trim(); }
+    function syncFromZh(kind, zhValue) {
+      const zh = normalizeZh(zhValue);
+      const en = (ZH_TO_EN[kind] && ZH_TO_EN[kind][zh]) ? ZH_TO_EN[kind][zh] : '';
+      if (kind === 'category') categoryInput.value = en;
+      if (kind === 'style') styleInput.value = en;
+      if (kind === 'color') colorInput.value = en;
+      if (kind === 'season') seasonInput.value = en;
+      if (kind === 'material') materialInput.value = en;
+      if (kind === 'silhouette') silhouetteInput.value = en;
+    }
+
+    if (categoryZhInput) categoryZhInput.addEventListener('input', () => syncFromZh('category', categoryZhInput.value));
+    if (styleZhInput) styleZhInput.addEventListener('input', () => syncFromZh('style', styleZhInput.value));
+    if (colorZhInput) colorZhInput.addEventListener('input', () => syncFromZh('color', colorZhInput.value));
+    if (seasonZhInput) seasonZhInput.addEventListener('input', () => syncFromZh('season', seasonZhInput.value));
+    if (materialZhInput) materialZhInput.addEventListener('input', () => syncFromZh('material', materialZhInput.value));
+    if (silhouetteZhInput) silhouetteZhInput.addEventListener('input', () => syncFromZh('silhouette', silhouetteZhInput.value));
+  })();
+</script>
+</html>

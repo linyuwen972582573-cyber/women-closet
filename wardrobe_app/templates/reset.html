@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>重置密码 - 衣橱管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/auth/login">登录</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section narrow">
+      <div class="section-head">
+        <h1>重置密码</h1>
+      </div>
+
+      <form class="form" method="post" action="/auth/reset">
+        {% if error %}
+          <p class="hint" style="color:#ff5a6a;">{{ error }}</p>
+        {% endif %}
+
+        <input type="hidden" name="token" value="{{ token }}" />
+
+        <div class="field">
+          <label>新密码</label>
+          <input type="password" name="new_password" required autocomplete="new-password" />
+          <p class="hint">至少 4 位。</p>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">确认重置</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>

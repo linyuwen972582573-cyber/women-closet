@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>每日穿搭 - 衣橱管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/">列表</a></li>
+        <li><a href="/add">新增</a></li>
+        <li><a href="/compare">相似度/得分</a></li>
+      </ul>
+      <div class="nav-links">
+        {% if user %}
+          <span class="muted">你好，{{ user["username"] }}</span>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section">
+      <div class="section-head">
+        <h1>每日穿搭指南</h1>
+        <a class="btn btn-secondary" href="/">返回</a>
+      </div>
+
+      <form class="form" method="post" action="/outfit">
+        <div class="grid-4">
+          <div class="field">
+            <label>场景</label>
+            <input name="occasion" placeholder="例如：上班 / 约会 / 旅行" />
+          </div>
+          <div class="field">
+            <label>风格偏好</label>
+            <input name="style" placeholder="例如：casual / business / minimalist" />
+          </div>
+          <div class="field">
+            <label>颜色偏好</label>
+            <input name="color" placeholder="例如：black / white / blue" />
+          </div>
+          <div class="field">
+            <label>天气</label>
+            <input name="weather" placeholder="例如：冷 / 热 / 下雨" />
+          </div>
+        </div>
+        <div class="field">
+          <label>其他要求</label>
+          <textarea name="notes" rows="3" placeholder="例如：要显瘦/适合走路/不想穿裙子..."></textarea>
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit">生成建议</button>
+        </div>
+        <p class="hint">提示：如果你配置了大模型接口（可选），会生成更自然的穿搭建议文案；不配置也能用本地规则推荐组合。</p>
+      </form>
+
+      {% if result %}
+        <div class="divider"></div>
+        <h2 class="h2">推荐结果</h2>
+
+        {% if result["llm_text"] %}
+          <div class="card card-plain">
+            <h3 class="card-title">大模型建议</h3>
+            <p class="muted">{{ result["llm_text"] }}</p>
+          </div>
+          <div class="divider"></div>
+        {% endif %}
+
+        <div class="cards">
+          {% for s in result["suggestions"] %}
+            <article class="card">
+              <h3 class="card-title">{{ s["title"] }}</h3>
+              <p class="muted">{{ s["reason"] }}</p>
+              <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 0.75rem;">
+                {% for it in s["items"] %}
+                  <div class="card card-plain">
+                    <p><b>{{ it["name"] }}</b></p>
+                    <p class="muted tiny">类别：{{ it["category"] or "-" }}；风格：{{ it["style"] or "-" }}；颜色：{{ it["color"] or "-" }}</p>
+                    {% if it["image_path"] %}
+                      <div class="thumb" style="width:100%; height:160px; margin-top:0.5rem;">
+                        <img src="/{{ it['image_path'] }}" alt="cloth" />
+                      </div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>

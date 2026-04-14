@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+pillow
+numpy
+sentence-transformers
+torch
+passlib[bcrypt]
+itsdangerous

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>账号 - 衣橱管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        <li><a href="/">列表</a></li>
+        {% if user and user["role"] == "admin" %}
+          <li><a href="/admin">管理员</a></li>
+        {% endif %}
+      </ul>
+      <div class="nav-links">
+        <span class="muted">你好，{{ user["username"] }}</span>
+        <form method="post" action="/auth/logout">
+          <button class="link" type="submit">退出</button>
+        </form>
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section narrow">
+      <div class="section-head">
+        <h1>账号设置</h1>
+      </div>
+
+      {% if error %}
+        <p class="hint" style="color:#ff5a6a;">{{ error }}</p>
+      {% endif %}
+      {% if message %}
+        <p class="hint">{{ message }}</p>
+      {% endif %}
+
+      <div class="card card-plain">
+        <p class="muted">用户名：<b>{{ user["username"] }}</b></p>
+        <p class="muted">角色：<b>{{ user["role"] }}</b></p>
+      </div>
+
+      <h2 class="h2">修改密码</h2>
+      <form class="form" method="post" action="/account/password">
+        <div class="field">
+          <label>旧密码</label>
+          <input type="password" name="old_password" required autocomplete="current-password" />
+        </div>
+        <div class="field">
+          <label>新密码</label>
+          <input type="password" name="new_password" required autocomplete="new-password" />
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit">保存新密码</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>

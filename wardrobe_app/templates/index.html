@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>衣橱管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0f0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <a class="logo" href="/">衣橱管理</a>
+      <ul class="nav-links">
+        {% if user %}
+          <li><a href="/add">新增</a></li>
+          <li><a href="/compare">相似度/得分</a></li>
+          <li><a href="/outfit">每日穿搭</a></li>
+        {% endif %}
+      </ul>
+      <div class="nav-links">
+        {% if user %}
+          <a class="link" href="/account">账号</a>
+          {% if user["role"] == "admin" %}
+            <a class="link" href="/admin">管理员</a>
+          {% endif %}
+          <span class="muted">你好，{{ user["username"] }}</span>
+          <form method="post" action="/auth/logout">
+            <button class="link" type="submit">退出</button>
+          </form>
+        {% else %}
+          <a class="link" href="/auth/login">登录</a>
+          <a class="link" href="/auth/register">注册</a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="section">
+      <div class="section-head">
+        <h1>我的衣橱</h1>
+        <div class="actions">
+          {% if user %}
+            <a class="btn" href="/add">+ 新增衣服</a>
+            <a class="btn btn-secondary" href="/compare">上传图片做对比</a>
+          {% else %}
+            <a class="btn" href="/auth/login">登录后开始使用</a>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if clothes|length == 0 %}
+        <p class="muted">还没有记录。点击“新增衣服”开始。</p>
+      {% else %}
+        <div class="cards">
+          {% for c in clothes %}
+            <article class="card">
+              <div class="card-row">
+                <div class="card-main">
+                  <h3 class="card-title">{{ c["name"] }}</h3>
+                  <p class="card-meta">
+                    <span>类别：<b>{{ label_zh("category", c["category"]) if c["category"] else "-" }}</b></span>
+                    <span>风格：<b>{{ label_zh("style", c["style"]) if c["style"] else "-" }}</b></span>
+                    <span>颜色：<b>{{ label_zh("color", c["color"]) if c["color"] else "-" }}</b></span>
+                    <span>季节：<b>{{ label_zh("season", c["season"]) if c["season"] else "-" }}</b></span>
+                    <span>材质：<b>{{ label_zh("material", c["material"]) if c["material"] else "-" }}</b></span>
+                    <span>版型：<b>{{ label_zh("silhouette", c["silhouette"]) if c["silhouette"] else "-" }}</b></span>
+                    <span>品牌：<b>{{ c["brand"] or "-" }}</b></span>
+                    <span>价格：<b>{{ c["price"] if c["price"] is not none else "-" }}</b></span>
+                  </p>
+                  {% if c["notes"] %}
+                    <p class="card-notes">{{ c["notes"] }}</p>
+                  {% endif %}
+                  <p class="muted tiny">更新：{{ c["updated_at"] }}</p>
+                </div>
+
+                <div class="thumb">
+                  {% if c["image_path"] %}
+                    <img src="/{{ c['image_path'] }}" alt="cloth" />
+                  {% else %}
+                    <div class="thumb-empty">无图</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <a class="link" href="/edit/{{ c['id'] }}">编辑</a>
+                <form method="post" action="/delete/{{ c['id'] }}" onsubmit="return confirm('确认删除？');">
+                  <button class="link danger" type="submit">删除</button>
+                </form>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+</html>
