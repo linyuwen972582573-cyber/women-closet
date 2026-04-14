@@ -510,9 +510,6 @@ def analyze_image(file_bytes: bytes) -> AnalyzeResult:
         season_scores /= float(len(crops))
         material_scores /= float(len(crops))
         silhouette_scores /= float(len(crops))
-        season_scores /= float(len(crops))
-        material_scores /= float(len(crops))
-        silhouette_scores /= float(len(crops))
 
         def top3(labels: list[str], scores: np.ndarray) -> list[dict[str, float]]:
             idx = np.argsort(scores)[::-1][:3]
@@ -532,16 +529,10 @@ def analyze_image(file_bytes: bytes) -> AnalyzeResult:
         season_top = top3(_clip_season_labels, season_scores)
         material_top = top3(_clip_material_labels, material_scores)
         silhouette_top = top3(_clip_silhouette_labels, silhouette_scores)
-        season_top = top3(_clip_season_labels, season_scores)
-        material_top = top3(_clip_material_labels, material_scores)
-        silhouette_top = top3(_clip_silhouette_labels, silhouette_scores)
 
         style = style_top[0]["label"] if style_top else "unknown"
         category = cat_top[0]["label"] if cat_top else "unknown"
         color_clip = color_top[0]["label"] if color_top else "unknown"
-        season = season_top[0]["label"] if season_top else "unknown"
-        material = material_top[0]["label"] if material_top else "unknown"
-        silhouette = silhouette_top[0]["label"] if silhouette_top else "unknown"
         season = season_top[0]["label"] if season_top else "unknown"
         material = material_top[0]["label"] if material_top else "unknown"
         silhouette = silhouette_top[0]["label"] if silhouette_top else "unknown"
