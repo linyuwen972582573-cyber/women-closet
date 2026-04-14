@@ -821,7 +821,7 @@ def healthz():
 
 @app.get("/trial", response_class=HTMLResponse)
 def trial_form(request: Request):
-    return templates.TemplateResponse("trial.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "trial.html", {"error": None})
 
 
 @app.post("/trial")
@@ -832,7 +832,7 @@ def trial_submit(request: Request, code: str = Form(...)):
         return RedirectResponse("/", status_code=303)
     if (code or "").strip() != expected:
         return templates.TemplateResponse(
-            "trial.html", {"request": request, "error": "口令不正确。"}, status_code=400
+            request, "trial.html", {"error": "口令不正确。"}, status_code=400
         )
     request.session["trial_ok"] = True
     return RedirectResponse("/", status_code=303)
@@ -848,14 +848,12 @@ def home(request: Request, user: Optional[sqlite3.Row] = Depends(get_current_use
                 "SELECT * FROM clothes WHERE user_id = ? ORDER BY datetime(created_at) DESC, id DESC",
                 (user["id"],),
             ).fetchall()
-    return templates.TemplateResponse(
-        "index.html", {"request": request, "clothes": rows, "user": user}
-    )
+    return templates.TemplateResponse(request, "index.html", {"clothes": rows, "user": user})
 
 
 @app.get("/add", response_class=HTMLResponse)
 def add_form(request: Request, user: sqlite3.Row = Depends(require_user)):
-    return templates.TemplateResponse("add.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "add.html", {"user": user})
 
 
 @app.post("/api/analyze-image")
@@ -902,12 +900,9 @@ def api_analyze_image(
 @app.get("/outfit", response_class=HTMLResponse)
 def outfit_form(request: Request, user: sqlite3.Row = Depends(require_user)):
     return templates.TemplateResponse(
+        request,
         "outfit.html",
-        {
-            "request": request,
-            "user": user,
-            "result": None,
-        },
+        {"user": user, "result": None},
     )
 
 
@@ -1040,9 +1035,9 @@ def outfit_submit(
     llm_text = _llm_outfit_advice(wardrobe_for_llm, prefs)
 
     return templates.TemplateResponse(
+        request,
         "outfit.html",
         {
-            "request": request,
             "user": user,
             "result": {
                 "prefs": prefs,
@@ -1157,9 +1152,7 @@ def edit_form(
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Not found")
-    return templates.TemplateResponse(
-        "edit.html", {"request": request, "item": row, "user": user}
-    )
+    return templates.TemplateResponse(request, "edit.html", {"item": row, "user": user})
 
 
 @app.post("/edit/{item_id}")
@@ -1279,9 +1272,7 @@ def compare_form(request: Request, user: sqlite3.Row = Depends(require_user)):
             "SELECT id, name FROM clothes WHERE user_id = ? ORDER BY id DESC",
             (user["id"],),
         ).fetchall()
-    return templates.TemplateResponse(
-        "compare.html", {"request": request, "clothes": rows, "result": None, "user": user}
-    )
+    return templates.TemplateResponse(request, "compare.html", {"clothes": rows, "result": None, "user": user})
 
 
 @app.post("/compare", response_class=HTMLResponse)
@@ -1395,7 +1386,7 @@ def compare_submit(
     }
 
     return templates.TemplateResponse(
-        "compare.html", {"request": request, "clothes": list_rows, "result": result, "user": user}
+        request, "compare.html", {"clothes": list_rows, "result": result, "user": user}
     )
 
 
@@ -1408,7 +1399,7 @@ def compare_submit(
 def register_form(request: Request, user: Optional[sqlite3.Row] = Depends(get_current_user)):
     if user is not None:
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("register.html", {"request": request, "user": None})
+    return templates.TemplateResponse(request, "register.html", {"user": None})
 
 
 @app.post("/auth/register")
@@ -1438,9 +1429,9 @@ def register_submit(
                 user_id = int(cur.lastrowid)
             except sqlite3.IntegrityError:
                 return templates.TemplateResponse(
+                    request,
                     "register.html",
                     {
-                        "request": request,
                         "user": None,
                         "error": "用户名已存在，请换一个。",
                     },
@@ -1449,9 +1440,9 @@ def register_submit(
     except sqlite3.Error as e:
         logger.exception("register database error: %s", e)
         return templates.TemplateResponse(
+            request,
             "register.html",
             {
-                "request": request,
                 "user": None,
                 "error": "数据库暂时不可用（可能被多进程锁定或磁盘不可写）。若部署在 Render，请设置进程数为 1，或设置环境变量 WARDROBE_DATA_DIR=/tmp/wardrobe_data。",
             },
@@ -1460,9 +1451,9 @@ def register_submit(
     except Exception:
         logger.exception("register failed (unexpected)")
         return templates.TemplateResponse(
+            request,
             "register.html",
             {
-                "request": request,
                 "user": None,
                 "error": "注册失败，请稍后重试。若持续出现，请查看服务器日志。",
             },
@@ -1474,9 +1465,9 @@ def register_submit(
     except Exception:
         logger.exception("register: could not persist session (cookie/JSON)")
         return templates.TemplateResponse(
+            request,
             "register.html",
             {
-                "request": request,
                 "user": None,
                 "error": "账号已在服务器创建成功，但浏览器会话未能保存。请用同一用户名到「登录」页登录。",
             },
@@ -1489,7 +1480,7 @@ def register_submit(
 def login_form(request: Request, user: Optional[sqlite3.Row] = Depends(get_current_user)):
     if user is not None:
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "user": None})
+    return templates.TemplateResponse(request, "login.html", {"user": None})
 
 
 @app.post("/auth/login")
@@ -1506,15 +1497,16 @@ def login_submit(
     except sqlite3.Error:
         logger.exception("login database error")
         return templates.TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "user": None, "error": "数据库暂时不可用，请稍后重试。"},
+            {"user": None, "error": "数据库暂时不可用，请稍后重试。"},
             status_code=503,
         )
     if row is None or not verify_password(password, row["password_hash"]):
         return templates.TemplateResponse(
+            request,
             "login.html",
             {
-                "request": request,
                 "user": None,
                 "error": "用户名或密码错误。",
             },
@@ -1526,9 +1518,9 @@ def login_submit(
     except Exception:
         logger.exception("login: could not persist session")
         return templates.TemplateResponse(
+            request,
             "login.html",
             {
-                "request": request,
                 "user": None,
                 "error": "验证成功，但会话未能写入浏览器。请关闭浏览器插件后重试，或换用无痕窗口。",
             },
@@ -1548,7 +1540,7 @@ def logout(request: Request):
 def forgot_form(request: Request, user: Optional[sqlite3.Row] = Depends(get_current_user)):
     if user is not None:
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("forgot.html", {"request": request, "user": None})
+    return templates.TemplateResponse(request, "forgot.html", {"user": None})
 
 
 @app.post("/auth/forgot", response_class=HTMLResponse)
@@ -1577,9 +1569,9 @@ def forgot_submit(request: Request, username: str = Form(...)):
     # 为了避免“用户名是否存在”的信息泄露：即使不存在也显示同样提示。
     reset_link = f"/auth/reset?token={token}"
     return templates.TemplateResponse(
+        request,
         "forgot.html",
         {
-            "request": request,
             "user": None,
             "message": "如果该用户名存在，我们已生成重置方式（开发版会直接显示链接）。",
             "reset_link": reset_link,
@@ -1593,7 +1585,7 @@ def reset_form(request: Request, token: str = ""):
     if not token:
         raise HTTPException(status_code=400, detail="Missing token")
     return templates.TemplateResponse(
-        "reset.html", {"request": request, "user": None, "token": token}
+        request, "reset.html", {"user": None, "token": token}
     )
 
 
@@ -1602,9 +1594,9 @@ def reset_submit(request: Request, token: str = Form(...), new_password: str = F
     token = token.strip()
     if len(new_password) < 4:
         return templates.TemplateResponse(
+            request,
             "reset.html",
             {
-                "request": request,
                 "user": None,
                 "token": token,
                 "error": "新密码至少 4 位。",
@@ -1615,8 +1607,9 @@ def reset_submit(request: Request, token: str = Form(...), new_password: str = F
         row = conn.execute("SELECT * FROM users WHERE reset_token = ?", (token,)).fetchone()
         if row is None:
             return templates.TemplateResponse(
+                request,
                 "reset.html",
-                {"request": request, "user": None, "token": token, "error": "链接无效或已过期。"},
+                {"user": None, "token": token, "error": "链接无效或已过期。"},
                 status_code=400,
             )
         exp = row["reset_expires_at"]
@@ -1625,8 +1618,9 @@ def reset_submit(request: Request, token: str = Form(...), new_password: str = F
                 exp_ts = int(datetime.fromisoformat(exp.replace("Z", "+00:00")).timestamp())
                 if int(datetime.now(timezone.utc).timestamp()) > exp_ts:
                     return templates.TemplateResponse(
+                        request,
                         "reset.html",
-                        {"request": request, "user": None, "token": token, "error": "链接已过期。"},
+                        {"user": None, "token": token, "error": "链接已过期。"},
                         status_code=400,
                     )
             except Exception:
@@ -1642,9 +1636,7 @@ def reset_submit(request: Request, token: str = Form(...), new_password: str = F
 
 @app.get("/account", response_class=HTMLResponse)
 def account_page(request: Request, user: sqlite3.Row = Depends(require_user)):
-    return templates.TemplateResponse(
-        "account.html", {"request": request, "user": user}
-    )
+    return templates.TemplateResponse(request, "account.html", {"user": user})
 
 
 @app.post("/account/password", response_class=HTMLResponse)
@@ -1656,16 +1648,18 @@ def change_password(
 ):
     if len(new_password) < 4:
         return templates.TemplateResponse(
+            request,
             "account.html",
-            {"request": request, "user": user, "error": "新密码至少 4 位。"},
+            {"user": user, "error": "新密码至少 4 位。"},
             status_code=400,
         )
     with db_connect() as conn:
         fresh = conn.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone()
     if fresh is None or not verify_password(old_password, fresh["password_hash"]):
         return templates.TemplateResponse(
+            request,
             "account.html",
-            {"request": request, "user": user, "error": "旧密码不正确。"},
+            {"user": user, "error": "旧密码不正确。"},
             status_code=400,
         )
     with db_connect() as conn:
@@ -1674,8 +1668,9 @@ def change_password(
             (hash_password(new_password), user["id"]),
         )
     return templates.TemplateResponse(
+        request,
         "account.html",
-        {"request": request, "user": user, "message": "密码已修改。"},
+        {"user": user, "message": "密码已修改。"},
     )
 
 
@@ -1694,6 +1689,7 @@ def admin_dashboard(request: Request, admin: sqlite3.Row = Depends(require_admin
             """
         ).fetchall()
     return templates.TemplateResponse(
+        request,
         "admin.html",
-        {"request": request, "user": admin, "users": users, "clothes": clothes},
+        {"user": admin, "users": users, "clothes": clothes},
     )
