@@ -1,0 +1,10 @@
+# Render / 小内存主机：不安装 PyTorch 与 sentence-transformers，启动时设 WARDROBE_DISABLE_CLIP=1
+# 仍可完整使用注册、衣橱 CRUD、规则颜色；CLIP 相似度/向量会关闭。
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+pillow
+numpy
+passlib[bcrypt]
+itsdangerous

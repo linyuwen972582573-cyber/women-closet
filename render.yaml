@@ -1,0 +1,20 @@
+# Render Blueprint: https://render.com/docs/infrastructure-as-code
+# 在 Render Dashboard → New → Blueprint → 连接本仓库即可按此文件创建 Web Service。
+services:
+  - type: web
+    name: women-closet
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install --upgrade pip && pip install -r requirements-render.txt
+    startCommand: uvicorn wardrobe_app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: WARDROBE_DATA_DIR
+        value: /tmp/wardrobe_data
+      - key: WARDROBE_DISABLE_CLIP
+        value: "1"
+      - key: WARDROBE_SECRET_KEY
+        generateValue: true

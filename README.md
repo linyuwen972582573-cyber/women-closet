@@ -34,14 +34,49 @@ uvicorn wardrobe_app.main:app --reload
 - **price/brand** 很难仅凭图片可靠识别（除非拍到吊牌/价签/Logo 并做 OCR/Logo 检测）。本 MVP 会把它们作为可编辑字段；图片分析阶段主要做：颜色 + 风格标签 + 图像相似度向量。
 - 第一次运行会自动下载模型（可能较大，取决于网络环境）。
 
-## 部署（Render 等）与注册 500 排查
+## 部署到 Render（推荐流程）
+
+仓库根目录已包含 **`render.yaml`**（Blueprint）与 **`requirements-render.txt`**（不含 PyTorch，免费套餐可稳定构建；线上默认关闭 CLIP，避免内存与冷启动下载模型）。
+
+### 方式 A：一键 Blueprint（推荐）
+
+1. 登录 [Render](https://render.com)，**New → Blueprint**。
+2. 连接 GitHub 仓库 **`linyuwen972582573-cyber/women-closet`**，分支选 **`main`**。
+3. 确认 Render 读取到根目录的 **`render.yaml`**，应用名称可按需修改后 **Apply**。
+4. 等待首次 **Build + Deploy** 完成（几分钟量级；若改用完整 `requirements.txt` 含 PyTorch，可能需十几分钟且易在免费实例 OOM）。
+5. 打开 Render 给出的 **`https://你的服务.onrender.com`**，若未设置试用口令可直接注册；若 Blueprint 里自行加了 `WARDROBE_TRIAL_CODE`，需先访问 **`/trial`**。
+
+### 方式 B：手动创建 Web Service
+
+1. **New → Web Service**，连接同一 GitHub 仓库，`Branch` = `main`。
+2. **Runtime**：Python 3.11。
+3. **Build Command**：`pip install --upgrade pip && pip install -r requirements-render.txt`  
+   （若要启用 CLIP，可改为 `pip install -r requirements.txt`，并把实例升级到更大内存，且不要设置 `WARDROBE_DISABLE_CLIP`。）
+4. **Start Command**：`uvicorn wardrobe_app.main:app --host 0.0.0.0 --port $PORT --workers 1`  
+   **必须** `--workers 1`，否则 SQLite 会锁库报错。
+5. **Environment**（在 Dashboard → Environment）建议至少配置：
+
+| 变量名 | 示例值 | 说明 |
+|--------|--------|------|
+| `WARDROBE_DATA_DIR` | `/tmp/wardrobe_data` | 数据库与上传目录放在可写临时目录（免费 Web 磁盘易失，重启后数据会清空，属 SQLite 演示预期）。 |
+| `WARDROBE_SECRET_KEY` | 随机长字符串 | 会话 Cookie 签名；勿泄露。 |
+| `WARDROBE_DISABLE_CLIP` | `1` | 与 `requirements-render.txt` 配套，跳过 CLIP。 |
+| `WARDROBE_TRIAL_CODE` | （可选） | 设置后访客须先打开 `/trial` 输入口令。 |
+
+6. **Health Check Path**：`/healthz`（可选，便于 Render 判断存活）。
+
+### Render 与 SQLite 注意事项
+
+- **免费实例休眠**：一段时间无访问会睡眠，首次唤醒较慢；SQLite 数据在 **`/tmp`** 时，**每次休眠/重部署可能清空**，仅适合演示。正式持久化需改用 Render **PostgreSQL** 等（需改代码，本 MVP 未内置）。
+- **Cookie / HTTPS**：若登录态异常，可尝试增加环境变量 `WARDROBE_SESSION_HTTPS_ONLY=1`。
+- **试用口令**：若设置了 `WARDROBE_TRIAL_CODE`，须先访问 **`/trial`** 再注册。
+
+## 部署（通用）与注册 500 排查
 
 本应用默认使用 **SQLite**（`wardrobe_app/data/` 或环境变量 `WARDROBE_DATA_DIR` 指定目录）。
 
-1. **进程数必须为 1**：多个 worker 会同时写同一 SQLite 文件，易出现 `database is locked` 或注册失败。Render 上请使用单进程启动，例如：
-   - Start Command：`uvicorn wardrobe_app.main:app --host 0.0.0.0 --port $PORT --workers 1`
-   - 若使用 Gunicorn：`WEB_CONCURRENCY=1`（或等价配置为 1 worker）。
-2. **可写数据目录（推荐）**：在 Render 环境变量中设置 `WARDROBE_DATA_DIR=/tmp/wardrobe_data`，确保数据库与上传目录在可写路径（部分镜像对代码目录只读）。
-3. **HTTPS 会话**：若站点为 HTTPS 且 Cookie 无法写入，可设置 `WARDROBE_SESSION_HTTPS_ONLY=1`（需反向代理正确传递 `X-Forwarded-Proto`，Uvicorn 默认会处理）。
-4. **试用口令**：若设置了 `WARDROBE_TRIAL_CODE`，必须先访问 `/trial` 通过口令，再注册；且代码中 **SessionMiddleware 必须晚于 TrialGateMiddleware 注册**（当前仓库已按此顺序）。
-5. **密钥**：生产环境务必设置 `WARDROBE_SECRET_KEY`（随机长字符串）。
+1. **进程数必须为 1**：多个 worker 会同时写同一 SQLite 文件。启动命令务必带 **`--workers 1`**（见上文）。
+2. **可写数据目录**：生产/Render 推荐 `WARDROBE_DATA_DIR=/tmp/wardrobe_data`。
+3. **HTTPS 会话**：见上表 `WARDROBE_SESSION_HTTPS_ONLY`。
+4. **试用口令**：须先 `/trial`；本仓库已保证 **SessionMiddleware 晚于 TrialGateMiddleware** 注册。
+5. **密钥**：务必设置 **`WARDROBE_SECRET_KEY`**。
