@@ -1,13 +1,18 @@
 # Wardrobe App（衣橱管理）
 
-一个最小可用（MVP）的衣橱管理网站：
-- 记录衣服：`style / color / price / brand / notes` 等字段（可编辑）
-- 上传图片：自动推断 **主色** 与 **风格标签**（零样本分类），并生成用于相似度的图片向量
-- 相似度/得分：上传新图片后，可与已录入衣服对比，得到“相似度百分比”和按权重计算的得分
+一个基于 **FastAPI + SQLite** 的衣橱管理网站（中文 UI，移动端友好，支持 PWA）。
 
-## 运行方式（Windows / PowerShell）
+## 功能
 
-在本目录执行：
+- **账号系统**：注册 / 登录 / 退出，数据按用户隔离
+- **衣物管理**：新增 / 编辑 / 删除；字段包括：类别、风格、颜色、季节、材质、版型、品牌、价格、备注
+- **图片上传**：保存到本地数据目录；页面可预览
+- **图片识别（可选）**：使用 CLIP 推断类别/风格/季节/材质/版型 + 相似度向量（部署资源不足时可关闭）
+- **试用口令（可选）**：设置口令后，访客需先通过 `/trial`
+
+## 快速开始（本地 Windows / PowerShell）
+
+在仓库根目录执行：
 
 ```bash
 python -m venv .venv
@@ -16,71 +21,65 @@ pip install -r requirements.txt
 uvicorn wardrobe_app.main:app --reload
 ```
 
-打开浏览器访问：`http://127.0.0.1:8000`
+打开：`http://127.0.0.1:8000`
 
-### 本地出现 `Internal Server Error`（尤其注册/登录）
+### 本地常见问题
 
-1. **先关掉所有占用 8000 端口的旧进程**（多个 `uvicorn` 或僵尸进程会让浏览器打到错误实例，表现为注册 POST 返回 500）：
-   ```powershell
-   Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
-     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-   ```
-   然后再启动：`uvicorn wardrobe_app.main:app --host 127.0.0.1 --port 8000 --reload`
-2. 若仍异常，删除本地库后重试（会清空衣橱数据）：删除 `wardrobe_app\data\wardrobe.sqlite3`（及同目录下 `-wal` / `-shm` 若存在），重启服务后会自动建表。
-3. 若设置了环境变量 `WARDROBE_TRIAL_CODE`，须先打开 **`http://127.0.0.1:8000/trial`** 输入口令，再注册。
+- **注册/登录出现 500**：
+  - 先清理 8000 端口占用，再启动服务：
+    ```powershell
+    Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
+      ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+    ```
+    然后执行：`uvicorn wardrobe_app.main:app --host 127.0.0.1 --port 8000 --reload`
+  - 仍异常可删除本地库重试（会清空数据）：`wardrobe_app\data\wardrobe.sqlite3`（以及 `-wal` / `-shm`）
+- **识别结果都是 unknown**：说明 CLIP 被关闭（详见下文 `WARDROBE_DISABLE_CLIP` 与 `requirements-render.txt`）
 
-## 说明（重要）
+## 环境变量（配置项）
 
-- **price/brand** 很难仅凭图片可靠识别（除非拍到吊牌/价签/Logo 并做 OCR/Logo 检测）。本 MVP 会把它们作为可编辑字段；图片分析阶段主要做：颜色 + 风格标签 + 图像相似度向量。
-- 第一次运行会自动下载模型（可能较大，取决于网络环境）。
+| 变量名 | 示例值 | 作用 |
+|------|------|------|
+| `WARDROBE_SECRET_KEY` | 随机长字符串 | 会话 Cookie 签名（生产必须设置） |
+| `WARDROBE_DATA_DIR` | `wardrobe_app/data` 或 `/var/data` | 数据目录（SQLite + uploads） |
+| `WARDROBE_DISABLE_CLIP` | `1` / `0` | `1` 关闭 CLIP（轻量部署）；`0` 启用识别 |
+| `WARDROBE_TRIAL_CODE` | `123456` | 试用口令（不设则关闭） |
+| `WARDROBE_SESSION_HTTPS_ONLY` | `1` | HTTPS 场景下强制 Secure Cookie（一般不需要） |
+| `WARDROBE_DEBUG` | `1` | 开启后将把异常信息返回到页面（仅排错，排完务必关闭） |
 
-## 部署到 Render（推荐流程）
+## 部署到 Render（推荐）
 
-仓库根目录已包含 **`render.yaml`**（Blueprint）与 **`requirements-render.txt`**（不含 PyTorch，免费套餐可稳定构建；线上默认关闭 CLIP，避免内存与冷启动下载模型）。
+仓库根目录已包含：
+- **`render.yaml`**：Blueprint（可一键创建服务）
+- **`requirements-render.txt`**：轻量依赖（不含 PyTorch），适合免费实例
+- **`runtime.txt`**：固定 Python 到 `python-3.11.9`（避免过新 Python 导致模板/Jinja2 异常）
 
-### 方式 A：一键 Blueprint（推荐）
+### 方式 A：Blueprint（推荐）
 
-1. 登录 [Render](https://render.com)，**New → Blueprint**。
-2. 连接 GitHub 仓库 **`linyuwen972582573-cyber/women-closet`**，分支选 **`main`**。
-3. 确认 Render 读取到根目录的 **`render.yaml`**，应用名称可按需修改后 **Apply**。
-4. 等待首次 **Build + Deploy** 完成（几分钟量级；若改用完整 `requirements.txt` 含 PyTorch，可能需十几分钟且易在免费实例 OOM）。
-5. 打开 Render 给出的 **`https://你的服务.onrender.com`**，若未设置试用口令可直接注册；若 Blueprint 里自行加了 `WARDROBE_TRIAL_CODE`，需先访问 **`/trial`**。
+1. Render：**New → Blueprint**
+2. 连接 GitHub 仓库并 Apply
+3. 等 Build/Deploy 完成，打开 `https://xxx.onrender.com`
 
-> Python 版本：仓库根目录包含 `runtime.txt`（`python-3.11.9`），用于避免 Render 选择过新的 Python（例如 3.14）导致模板/Jinja2 报错。
+### 方式 B：手动 Web Service（照抄配置）
 
-### 方式 B：手动创建 Web Service
+- **Build Command**
+  - 轻量（免费稳定）：`pip install --upgrade pip && pip install -r requirements-render.txt`
+  - 启用 CLIP（更慢更吃内存）：`pip install --upgrade pip && pip install -r requirements.txt`
+- **Start Command**（SQLite 必须单进程）
+  - `uvicorn wardrobe_app.main:app --host 0.0.0.0 --port $PORT --workers 1`
+- **Environment（建议最少 3 个）**
+  - `WARDROBE_SECRET_KEY`：生成随机值
+  - `WARDROBE_DATA_DIR`：`/tmp/wardrobe_data`（演示）或持久盘挂载目录（见下一节）
+  - `WARDROBE_DISABLE_CLIP=1`（使用轻量依赖时）
 
-1. **New → Web Service**，连接同一 GitHub 仓库，`Branch` = `main`。
-2. **Runtime**：Python 3.11。
-3. **Build Command**：`pip install --upgrade pip && pip install -r requirements-render.txt`  
-   （若要启用 CLIP，可改为 `pip install -r requirements.txt`，并把实例升级到更大内存，且不要设置 `WARDROBE_DISABLE_CLIP`。）
-4. **Start Command**：`uvicorn wardrobe_app.main:app --host 0.0.0.0 --port $PORT --workers 1`  
-   **必须** `--workers 1`，否则 SQLite 会锁库报错。
-5. **Environment**（在 Dashboard → Environment）建议至少配置：
+### Render 数据持久化（强烈推荐）
 
-| 变量名 | 示例值 | 说明 |
-|--------|--------|------|
-| `WARDROBE_DATA_DIR` | `/tmp/wardrobe_data` | 数据库与上传目录放在可写临时目录（免费 Web 磁盘易失，重启后数据会清空，属 SQLite 演示预期）。 |
-| `WARDROBE_SECRET_KEY` | 随机长字符串 | 会话 Cookie 签名；勿泄露。 |
-| `WARDROBE_DISABLE_CLIP` | `1` | 与 `requirements-render.txt` 配套，跳过 CLIP。 |
-| `WARDROBE_TRIAL_CODE` | （可选） | 设置后访客须先打开 `/trial` 输入口令。 |
+如果你把 `WARDROBE_DATA_DIR` 指到 `/tmp/...`，服务休眠/重启后**账号与数据会丢**。解决方法：
 
-6. **Health Check Path**：`/healthz`（可选，便于 Render 判断存活）。
+1. Render 服务里添加 **Persistent Disk**
+2. 例如挂载到 `/var/data`
+3. 把环境变量改为：`WARDROBE_DATA_DIR=/var/data`
+4. 重新部署
 
-> 若你看到错误 `Unhandled error: TypeError: cannot use 'tuple' as a dict key (unhashable type: 'dict')`，基本是 Render 使用了过新的 Python（日志路径里会出现 `python3.14`）。请确保 `runtime.txt` 已生效，并执行一次 **Clear build cache & deploy**。
+## 生产部署建议（云服务器）
 
-### Render 与 SQLite 注意事项
-
-- **免费实例休眠**：一段时间无访问会睡眠，首次唤醒较慢；SQLite 数据在 **`/tmp`** 时，**每次休眠/重部署可能清空**，仅适合演示。正式持久化需改用 Render **PostgreSQL** 等（需改代码，本 MVP 未内置）。
-- **Cookie / HTTPS**：若登录态异常，可尝试增加环境变量 `WARDROBE_SESSION_HTTPS_ONLY=1`。
-- **试用口令**：若设置了 `WARDROBE_TRIAL_CODE`，须先访问 **`/trial`** 再注册。
-
-## 部署（通用）与注册 500 排查
-
-本应用默认使用 **SQLite**（`wardrobe_app/data/` 或环境变量 `WARDROBE_DATA_DIR` 指定目录）。
-
-1. **进程数必须为 1**：多个 worker 会同时写同一 SQLite 文件。启动命令务必带 **`--workers 1`**（见上文）。
-2. **可写数据目录**：生产/Render 推荐 `WARDROBE_DATA_DIR=/tmp/wardrobe_data`。
-3. **HTTPS 会话**：见上表 `WARDROBE_SESSION_HTTPS_ONLY`。
-4. **试用口令**：须先 `/trial`；本仓库已保证 **SessionMiddleware 晚于 TrialGateMiddleware** 注册。
-5. **密钥**：务必设置 **`WARDROBE_SECRET_KEY`**。
+如果你希望 **不休眠、数据长期保存、可自定义域名**，推荐用云服务器（VPS）部署，并把 `WARDROBE_DATA_DIR` 指到服务器磁盘目录（例如 `/var/lib/wardrobe_data`）。
