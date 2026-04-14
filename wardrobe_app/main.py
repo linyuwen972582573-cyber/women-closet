@@ -475,15 +475,6 @@ def analyze_image(file_bytes: bytes) -> AnalyzeResult:
         silhouette_text = model.encode(
             _clip_silhouette_labels, convert_to_numpy=True, normalize_embeddings=True
         )
-        season_text = model.encode(
-            _clip_season_labels, convert_to_numpy=True, normalize_embeddings=True
-        )
-        material_text = model.encode(
-            _clip_material_labels, convert_to_numpy=True, normalize_embeddings=True
-        )
-        silhouette_text = model.encode(
-            _clip_silhouette_labels, convert_to_numpy=True, normalize_embeddings=True
-        )
 
         style_scores = np.zeros((len(_clip_style_labels),), dtype=np.float32)
         cat_scores = np.zeros((len(_clip_category_labels),), dtype=np.float32)
